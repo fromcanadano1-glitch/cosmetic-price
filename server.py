@@ -209,84 +209,167 @@ def analyze_json(query: str, min_vol: float = 0, no_sample: bool = True):
 PAGE = """<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>화장품 진짜 최저가</title>
+<title>실속 — 화장품 진짜 최저가</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-  body{font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;max-width:860px;
-       margin:40px auto;padding:0 16px;color:#222;background:#fafafa}
-  h1{font-size:1.5rem} .sub{color:#777;font-size:.9rem;margin-bottom:24px}
-  form{display:flex;gap:8px;margin-bottom:10px}
-  input[type=text]{flex:1;padding:12px 16px;font-size:1rem;border:2px solid #ddd;border-radius:10px}
-  button{padding:12px 24px;font-size:1rem;border:0;border-radius:10px;
-         background:#1a7f5a;color:#fff;cursor:pointer}
-  button:disabled{background:#aaa}
-  .filters{display:flex;gap:16px;align-items:center;margin-bottom:24px;
-           font-size:.85rem;color:#555}
-  .filters input[type=number]{width:70px;padding:4px 8px;border:1px solid #ccc;border-radius:6px}
-  .best{background:#e8f7f0;border:2px solid #1a7f5a;border-radius:12px;
-        padding:16px 20px;margin-bottom:12px}
-  .best b{font-size:1.15rem}
-  .advice{background:#fff8e6;border:2px solid #e6a817;border-radius:12px;
-          padding:12px 20px;margin-bottom:12px;font-size:.95rem}
-  .sales{background:#fff;border:1px solid #ddd;border-radius:12px;
-         padding:12px 20px;margin-bottom:20px;font-size:.85rem;color:#555}
-  .sales b{color:#222} .sales .on{color:#1a7f5a;font-weight:700}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
-  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eee;font-size:.9rem}
-  th{background:#f0f0f0} td.num{text-align:right;white-space:nowrap}
-  tr.dim{color:#999} .note{color:#888;font-size:.8rem;margin-top:12px}
-  .err{color:#c0392b;padding:12px;background:#fdecea;border-radius:8px}
-  a{color:#1a7f5a}
+  :root{--bg:#f6f4ef;--ink:#191713;--muted:#8b857a;--line:#e9e4db;--card:#ffffff;
+        --brand:#0d5c46;--brand-deep:#0a4534;--brand-soft:#eaf3ef;
+        --gold:#b9862f;--gold-soft:#fbf3e2}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+       background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px 80px}
+  header{padding:64px 0 36px;text-align:center}
+  .logo{display:inline-flex;align-items:center;gap:10px;font-weight:800;
+        font-size:.95rem;letter-spacing:.14em;color:var(--brand);text-transform:uppercase}
+  .logo::before{content:'';width:26px;height:2px;background:var(--brand)}
+  .logo::after{content:'';width:26px;height:2px;background:var(--brand)}
+  h1{font-size:clamp(1.7rem,4.5vw,2.6rem);font-weight:800;letter-spacing:-.04em;
+     margin:14px 0 12px;line-height:1.2}
+  h1 em{font-style:normal;color:var(--brand)}
+  .sub{color:var(--muted);font-size:.95rem;line-height:1.6;max-width:560px;margin:0 auto}
+  .searchbox{position:relative;max-width:640px;margin:32px auto 14px}
+  .searchbox input{width:100%;padding:18px 130px 18px 26px;font-size:1.05rem;
+        font-family:inherit;border:1.5px solid var(--line);border-radius:999px;
+        background:var(--card);outline:none;
+        box-shadow:0 10px 34px rgba(25,23,19,.07);transition:border-color .15s,box-shadow .15s}
+  .searchbox input:focus{border-color:var(--brand);box-shadow:0 10px 34px rgba(13,92,70,.14)}
+  .searchbox button{position:absolute;right:7px;top:7px;bottom:7px;padding:0 30px;
+        font-size:.98rem;font-weight:700;font-family:inherit;border:0;border-radius:999px;
+        background:var(--brand);color:#fff;cursor:pointer;transition:background .15s}
+  .searchbox button:hover{background:var(--brand-deep)}
+  .searchbox button:disabled{background:#c2beb5;cursor:default}
+  .filters{display:flex;gap:22px;justify-content:center;align-items:center;
+           font-size:.85rem;color:var(--muted)}
+  .filters label{display:flex;align-items:center;gap:7px;cursor:pointer}
+  .filters input[type=number]{width:64px;padding:5px 9px;border:1px solid var(--line);
+        border-radius:8px;font-family:inherit;background:var(--card)}
+  .filters input[type=checkbox]{accent-color:var(--brand);width:15px;height:15px}
+  #out{margin-top:34px}
+  .spinner{display:flex;flex-direction:column;align-items:center;gap:14px;
+           padding:46px 0;color:var(--muted);font-size:.9rem}
+  .spinner .ring{width:34px;height:34px;border-radius:50%;
+        border:3px solid var(--line);border-top-color:var(--brand);
+        animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .best{background:linear-gradient(135deg,var(--brand) 0%,var(--brand-deep) 100%);
+        color:#fff;border-radius:20px;padding:26px 30px;margin-bottom:14px;
+        box-shadow:0 16px 44px rgba(13,92,70,.25)}
+  .best .label{font-size:.78rem;font-weight:700;letter-spacing:.12em;opacity:.75;
+        text-transform:uppercase;margin-bottom:8px}
+  .best .price{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+  .best .price small{font-size:1rem;font-weight:600;opacity:.85;margin-left:8px}
+  .best a{color:#fff;opacity:.88;font-size:.92rem;text-decoration:underline;
+        text-underline-offset:3px;display:inline-block;margin-top:9px}
+  .advice{display:flex;gap:12px;align-items:flex-start;background:var(--gold-soft);
+        border:1px solid #ecd9ac;border-radius:16px;padding:16px 20px;
+        margin-bottom:14px;font-size:.93rem;line-height:1.55;color:#5d4a1e}
+  .advice::before{content:'⏰';font-size:1.1rem;line-height:1.4}
+  .sales{background:var(--card);border:1px solid var(--line);border-radius:16px;
+        padding:16px 20px;margin-bottom:26px}
+  .sales .t{font-size:.78rem;font-weight:700;letter-spacing:.1em;color:var(--muted);
+        text-transform:uppercase;margin-bottom:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:.82rem;
+        padding:6px 13px;border-radius:999px;background:var(--bg);
+        border:1px solid var(--line);color:#55503f}
+  .chip b{color:var(--brand);font-weight:800}
+  .chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-deep)}
+  .sales .foot{font-size:.78rem;color:var(--muted);margin-top:10px}
+  .tablecard{background:var(--card);border:1px solid var(--line);border-radius:18px;
+        overflow:hidden;box-shadow:0 8px 30px rgba(25,23,19,.05)}
+  .tscroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:640px}
+  th{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+     color:var(--muted);text-align:left;padding:14px 16px;background:#fbfaf7;
+     border-bottom:1px solid var(--line)}
+  td{padding:13px 16px;border-bottom:1px solid #f1eee7;font-size:.9rem;vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tbody tr{transition:background .12s} tbody tr:hover{background:#faf8f3}
+  td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .unitp{font-weight:800;color:var(--brand)}
+  .mall{display:inline-block;font-size:.78rem;font-weight:700;padding:4px 11px;
+        border-radius:999px;background:var(--brand-soft);color:var(--brand-deep);
+        white-space:nowrap}
+  tr.dim{opacity:.45}
+  td a{color:var(--ink);text-decoration:none}
+  td a:hover{color:var(--brand);text-decoration:underline;text-underline-offset:3px}
+  .note{color:var(--muted);font-size:.78rem;line-height:1.7;margin-top:16px;text-align:center}
+  .err{color:#a13326;padding:18px 22px;background:#fbeae6;border:1px solid #f0cfc7;
+       border-radius:14px;font-size:.92rem}
+  footer{margin-top:60px;text-align:center;color:#b3ada1;font-size:.78rem}
+  @media(max-width:560px){
+    header{padding:44px 0 26px}
+    .searchbox input{padding:15px 108px 15px 20px;font-size:.95rem}
+    .searchbox button{padding:0 20px}
+    .filters{flex-wrap:wrap;gap:12px}
+    .best .price{font-size:1.5rem}
+  }
 </style></head><body>
-<h1>화장품 진짜 최저가 🔍</h1>
-<div class="sub">여러 플랫폼 판매가를 용량당 단가로 환산하고, 세일 타이밍까지 알려줍니다 —
-브랜드+제품명으로 구체적으로 검색할수록 정확해요</div>
-<form id="f"><input type="text" id="q" placeholder="예: 이니스프리 그린티 세럼" autofocus>
-<button id="btn">검색</button></form>
-<div class="filters">
-  <label>최소 용량 <input type="number" id="minv" value="10"> ml/g</label>
-  <label><input type="checkbox" id="nosample" checked> 샘플·체험분 제외</label>
-</div>
+<div class="wrap">
+<header>
+  <div class="logo">실속</div>
+  <h1>같은 화장품, <em>진짜 최저가</em>로 사세요</h1>
+  <div class="sub">여러 플랫폼 판매가를 용량당 단가(원/ml)로 환산해 비교하고,
+  세일 타이밍까지 알려드립니다. 브랜드+제품명으로 검색할수록 정확해요.</div>
+  <form class="searchbox" id="f">
+    <input type="text" id="q" placeholder="예: 이니스프리 그린티 세럼" autofocus>
+    <button id="btn">검색</button>
+  </form>
+  <div class="filters">
+    <label>최소 용량 <input type="number" id="minv" value="10"> ml/g</label>
+    <label><input type="checkbox" id="nosample" checked> 샘플·체험분 제외</label>
+  </div>
+</header>
 <div id="out"></div>
+<footer>가격 정보: 네이버쇼핑 · 세일 일정은 공개 패턴 기반 예상치입니다</footer>
+</div>
 <script>
 const f=document.getElementById('f'),q=document.getElementById('q'),
       out=document.getElementById('out'),btn=document.getElementById('btn'),
       minv=document.getElementById('minv'),nosample=document.getElementById('nosample');
 const won=n=>n.toLocaleString('ko-KR');
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 f.onsubmit=async e=>{
   e.preventDefault(); if(!q.value.trim())return;
-  btn.disabled=true; out.innerHTML='검색 중... (최대 300개 수집)';
+  btn.disabled=true;
+  out.innerHTML='<div class="spinner"><div class="ring"></div>최대 300개 상품을 비교하는 중...</div>';
   try{
     const p=new URLSearchParams({q:q.value,min_vol:minv.value||'0',
                                  no_sample:nosample.checked?'1':'0'});
     const r=await fetch('/api/search?'+p);
     const d=await r.json();
-    if(d.error){out.innerHTML='<div class="err">'+d.error+'</div>';return}
+    if(d.error){out.innerHTML='<div class="err">'+esc(d.error)+'</div>';return}
     if(!d.rows.length){out.innerHTML='<div class="err">조건에 맞는 상품이 없습니다. 필터를 낮춰보세요.</div>';return}
     let h='';
-    if(d.best) h+='<div class="best">진짜 최저가: <b>'+d.best.mall+' '+won(d.best.price)+'원</b> ('
-      +won(Math.round(d.best.unit_price))+'원/'+d.best.unit+', '+d.best.vol+d.best.unit+')<br>'
-      +'<a href="'+d.best.link+'" target="_blank">'+d.best.title+'</a></div>';
-    if(d.advice) h+='<div class="advice">⏰ '+d.advice+'</div>';
+    if(d.best) h+='<div class="best"><div class="label">진짜 최저가</div>'
+      +'<div class="price">'+esc(d.best.mall)+' '+won(d.best.price)+'원'
+      +'<small>'+won(Math.round(d.best.unit_price))+'원/'+d.best.unit+' · '+d.best.vol+d.best.unit+'</small></div>'
+      +'<a href="'+esc(d.best.link)+'" target="_blank" rel="noopener">'+esc(d.best.title)+' ↗</a></div>';
+    if(d.advice) h+='<div class="advice">'+esc(d.advice)+'</div>';
     if(d.sales&&d.sales.length){
-      h+='<div class="sales"><b>다가오는 세일</b> — ';
-      h+=d.sales.map(s=>(s.ongoing?'<span class="on">'+s.name+' 진행 중('+s.end+'까지)</span>'
-        :s.name+' D-'+s.d_day+'('+s.start+'~)')).join(' · ');
-      h+='<br>'+d.sale_note+'</div>';
+      h+='<div class="sales"><div class="t">다가오는 세일</div><div class="chips">';
+      h+=d.sales.map(s=>(s.ongoing
+        ?'<span class="chip on"><b>'+esc(s.name)+'</b> 진행 중 · '+s.end+'까지</span>'
+        :'<span class="chip"><b>D-'+s.d_day+'</b>'+esc(s.name)+' · '+s.start+'~</span>')).join('');
+      h+='</div><div class="foot">'+esc(d.sale_note)+'</div></div>';
     }
-    h+='<table><tr><th>단가</th><th>판매가</th><th>용량</th><th>판매처</th><th>상품명</th></tr>';
+    h+='<div class="tablecard"><div class="tscroll"><table><thead><tr>'
+      +'<th style="text-align:right">단가</th><th style="text-align:right">판매가</th>'
+      +'<th style="text-align:right">용량</th><th>판매처</th><th>상품명</th></tr></thead><tbody>';
     for(const r2 of d.rows){
       const dim=d.best&&r2.unit!==d.best.unit?' class="dim"':'';
-      h+='<tr'+dim+'><td class="num"><b>'+won(Math.round(r2.unit_price))+'원/'+r2.unit+'</b></td>'
+      h+='<tr'+dim+'><td class="num"><span class="unitp">'+won(Math.round(r2.unit_price))+'원/'+r2.unit+'</span></td>'
         +'<td class="num">'+won(r2.price)+'원</td><td class="num">'+r2.vol+r2.unit+'</td>'
-        +'<td>'+r2.mall+'</td><td><a href="'+r2.link+'" target="_blank">'+r2.title+'</a></td></tr>';
+        +'<td><span class="mall">'+esc(r2.mall)+'</span></td>'
+        +'<td><a href="'+esc(r2.link)+'" target="_blank" rel="noopener">'+esc(r2.title)+'</a></td></tr>';
     }
-    h+='</table><div class="note">수집 '+d.fetched+'건 → 분석 '+d.total+'건 (파싱 실패 '
-      +d.skipped+'건 · 필터 제외 '+d.filtered+'건)'
+    h+='</tbody></table></div></div><div class="note">수집 '+d.fetched+'건 → 분석 '+d.total
+      +'건 (파싱 실패 '+d.skipped+'건 · 필터 제외 '+d.filtered+'건)'
       +(d.mock?' · <b>목데이터 모드</b>':'')
-      +' · 회색 행은 단위가 달라 별개 제품일 수 있음'
-      +' · 세일 일정은 공개 패턴 기반 예상이며 확정 공지는 각 플랫폼 확인</div>';
+      +'<br>흐린 행은 단위(ml/g)가 달라 별개 제품일 수 있음 · 세일 일정은 확정 공지 기준으로 재확인 필요</div>';
     out.innerHTML=h;
-  }catch(err){out.innerHTML='<div class="err">오류: '+err+'</div>'}
+  }catch(err){out.innerHTML='<div class="err">오류: '+esc(String(err))+'</div>'}
   finally{btn.disabled=false}
 };
 </script></body></html>"""
