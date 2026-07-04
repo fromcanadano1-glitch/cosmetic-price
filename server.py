@@ -154,10 +154,12 @@ def fetch_items(query: str):
 
 
 RE_SAMPLE = re.compile(r"샘플|체험|테스터|파우치|미니어처|증정품|1회용")
+RE_FREESHIP = re.compile(r"무료\s*배송|무배|무료직배송")
 
 
-def analyze_json(query: str, min_vol: float = 0, no_sample: bool = True):
-    key = (query.strip(), min_vol, no_sample)
+def analyze_json(query: str, min_vol: float = 0, no_sample: bool = True,
+                 free_ship_only: bool = False):
+    key = (query.strip(), min_vol, no_sample, free_ship_only)
     now = time.time()
     with _CACHE_LOCK:
         hit = _CACHE.get(key)
@@ -173,13 +175,16 @@ def analyze_json(query: str, min_vol: float = 0, no_sample: bool = True):
         if vol is None or price == 0:
             skipped += 1
             continue
-        if vol < min_vol or (no_sample and RE_SAMPLE.search(title)):
+        freeship = bool(RE_FREESHIP.search(title))
+        if (vol < min_vol or (no_sample and RE_SAMPLE.search(title))
+                or (free_ship_only and not freeship)):
             filtered += 1
             continue
         rows.append({
             "title": title, "price": price, "vol": vol, "unit": unit,
             "unit_price": round(price / vol, 1),
             "mall": it.get("mallName", "?"), "link": it.get("link", ""),
+            "freeship": freeship,
         })
     rows.sort(key=lambda r: r["unit_price"])
 
@@ -291,6 +296,10 @@ PAGE = """<!DOCTYPE html>
   .mall{display:inline-block;font-size:.78rem;font-weight:700;padding:4px 11px;
         border-radius:999px;background:var(--brand-soft);color:var(--brand-deep);
         white-space:nowrap}
+  .fs{display:inline-block;font-size:.7rem;font-weight:700;padding:3px 8px;
+      border-radius:999px;background:#e7f0fb;color:#2b5d9e;white-space:nowrap;
+      margin-left:6px}
+  .shipnote{font-size:.8rem;opacity:.75;margin-top:7px}
   tr.dim{opacity:.45}
   td a{color:var(--ink);text-decoration:none}
   td a:hover{color:var(--brand);text-decoration:underline;text-underline-offset:3px}
@@ -319,6 +328,7 @@ PAGE = """<!DOCTYPE html>
   <div class="filters">
     <label>최소 용량 <input type="number" id="minv" value="10"> ml/g</label>
     <label><input type="checkbox" id="nosample" checked> 샘플·체험분 제외</label>
+    <label><input type="checkbox" id="freeship"> 무료배송 표기만</label>
   </div>
 </header>
 <div id="out"></div>
@@ -327,7 +337,8 @@ PAGE = """<!DOCTYPE html>
 <script>
 const f=document.getElementById('f'),q=document.getElementById('q'),
       out=document.getElementById('out'),btn=document.getElementById('btn'),
-      minv=document.getElementById('minv'),nosample=document.getElementById('nosample');
+      minv=document.getElementById('minv'),nosample=document.getElementById('nosample'),
+      freeship=document.getElementById('freeship');
 const won=n=>n.toLocaleString('ko-KR');
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 f.onsubmit=async e=>{
@@ -336,7 +347,8 @@ f.onsubmit=async e=>{
   out.innerHTML='<div class="spinner"><div class="ring"></div>최대 300개 상품을 비교하는 중...</div>';
   try{
     const p=new URLSearchParams({q:q.value,min_vol:minv.value||'0',
-                                 no_sample:nosample.checked?'1':'0'});
+                                 no_sample:nosample.checked?'1':'0',
+                                 free_ship:freeship.checked?'1':'0'});
     const r=await fetch('/api/search?'+p);
     const d=await r.json();
     if(d.error){out.innerHTML='<div class="err">'+esc(d.error)+'</div>';return}
@@ -345,7 +357,9 @@ f.onsubmit=async e=>{
     if(d.best) h+='<div class="best"><div class="label">진짜 최저가</div>'
       +'<div class="price">'+esc(d.best.mall)+' '+won(d.best.price)+'원'
       +'<small>'+won(Math.round(d.best.unit_price))+'원/'+d.best.unit+' · '+d.best.vol+d.best.unit+'</small></div>'
-      +'<a href="'+esc(d.best.link)+'" target="_blank" rel="noopener">'+esc(d.best.title)+' ↗</a></div>';
+      +'<a href="'+esc(d.best.link)+'" target="_blank" rel="noopener">'+esc(d.best.title)+' ↗</a>'
+      +'<div class="shipnote">'+(d.best.freeship?'무료배송 표기 상품'
+        :'⚠ 배송비 제외 가격 — 최종가는 링크에서 배송비 포함으로 확인하세요')+'</div></div>';
     if(d.advice) h+='<div class="advice">'+esc(d.advice)+'</div>';
     if(d.sales&&d.sales.length){
       h+='<div class="sales"><div class="t">다가오는 세일</div><div class="chips">';
@@ -361,12 +375,14 @@ f.onsubmit=async e=>{
       const dim=d.best&&r2.unit!==d.best.unit?' class="dim"':'';
       h+='<tr'+dim+'><td class="num"><span class="unitp">'+won(Math.round(r2.unit_price))+'원/'+r2.unit+'</span></td>'
         +'<td class="num">'+won(r2.price)+'원</td><td class="num">'+r2.vol+r2.unit+'</td>'
-        +'<td><span class="mall">'+esc(r2.mall)+'</span></td>'
+        +'<td><span class="mall">'+esc(r2.mall)+'</span>'
+        +(r2.freeship?'<span class="fs">무료배송</span>':'')+'</td>'
         +'<td><a href="'+esc(r2.link)+'" target="_blank" rel="noopener">'+esc(r2.title)+'</a></td></tr>';
     }
     h+='</tbody></table></div></div><div class="note">수집 '+d.fetched+'건 → 분석 '+d.total
       +'건 (파싱 실패 '+d.skipped+'건 · 필터 제외 '+d.filtered+'건)'
       +(d.mock?' · <b>목데이터 모드</b>':'')
+      +'<br>모든 가격은 배송비 제외 (네이버쇼핑 데이터에 배송비 미포함) · 무료배송 배지는 상품명 표기 기준'
       +'<br>흐린 행은 단위(ml/g)가 달라 별개 제품일 수 있음 · 세일 일정은 확정 공지 기준으로 재확인 필요</div>';
     out.innerHTML=h;
   }catch(err){out.innerHTML='<div class="err">오류: '+esc(String(err))+'</div>'}
@@ -396,9 +412,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 min_vol = float(qs.get("min_vol", ["0"])[0] or 0)
                 no_sample = qs.get("no_sample", ["1"])[0] == "1"
+                free_ship = qs.get("free_ship", ["0"])[0] == "1"
                 self._send(200, json.dumps(
-                    analyze_json(query, min_vol, no_sample), ensure_ascii=False),
-                    "application/json")
+                    analyze_json(query, min_vol, no_sample, free_ship),
+                    ensure_ascii=False), "application/json")
             except Exception as e:
                 self._send(200, json.dumps({"error": str(e)}, ensure_ascii=False),
                            "application/json")
